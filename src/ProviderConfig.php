@@ -35,6 +35,7 @@ class ProviderConfig
         if (! static::$providerConfigs) {
             // 从composer.lock中收集所有配置提供者ConfigProvider（hyperf下的config属性）
             $providers = Composer::getMergedExtra('hyperf')['config'] ?? [];
+            // 处理成特定的数据格式
             static::$providerConfigs = static::loadProviders($providers);
         }
         return static::$providerConfigs;
@@ -52,7 +53,7 @@ class ProviderConfig
             if (is_string($provider) && class_exists($provider) && method_exists($provider, '__invoke')) {
                 /*
                  * 以调用函数的方式触发__invoke，取得provider的配置，已知返回的属性有：
-                 * 1. dependencies
+                 * 1. dependencies 依赖关系绑定
                  * 2. listeners 监听器，哪个地方会用到？
                  * 3. annotations 注解，哪个地方会用到？
                  * 4. aspects aop切面，哪个地方会用到？
@@ -65,22 +66,27 @@ class ProviderConfig
         return static::merge(...$providerConfigs);
     }
 
+    /**
+     * 最终返回结构：[
+     *  //多个ConfigProvider的dependencies组合在一起，其他属性也一样
+     *  'dependencies' => [
+     *      CacheInterface::class => Cache::class,
+     *      MethodDefinitionCollectorInterface::class => MethodDefinitionCollector::class,
+     *      ...
+     *  ],
+     *  'aspects' => [
+     *      InjectAspect::class,
+     *      TransactionAspect::class,
+     *      ...
+     *  ],
+     *  ...
+     * ]
+     */
     protected static function merge(...$arrays): array
     {
         if (empty($arrays)) {
             return [];
         }
-        /**
-         * $result最终结构：[
-         *  //多个ConfigProvider的dependencies组合在一起，其他属性也一样
-         *  'dependencies' => [
-         *      CacheInterface::class => Cache::class,
-         *      MethodDefinitionCollectorInterface::class => MethodDefinitionCollector::class,
-         *      ...
-         *  ],
-         *  ...
-         * ]
-         */
         $result = array_merge_recursive(...$arrays);
         if (isset($result['dependencies'])) {
             $result['dependencies'] = [];
